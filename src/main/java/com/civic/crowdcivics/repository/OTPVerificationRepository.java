@@ -15,6 +15,12 @@ public interface OTPVerificationRepository extends JpaRepository<OTPVerification
 
     Optional<OTPVerification> findByEmailAndPurposeAndUsedFalse(String email, String purpose);
 
+    Optional<OTPVerification> findByPhoneAndPurposeAndUsedFalse(String phone, String purpose);
+
+    @Modifying
+    @Query("DELETE FROM OTPVerification o WHERE o.phone = :phone AND o.purpose = :purpose")
+    void deleteByPhoneAndPurpose(@Param("phone") String phone, @Param("purpose") String purpose);
+
     @Query("SELECT COUNT(o) FROM OTPVerification o WHERE o.email = :email AND o.purpose = :purpose")
     long countByEmailAndPurpose(@Param("email") String email, @Param("purpose") String purpose);
 

@@ -32,7 +32,7 @@ public class Issue {
     private String description;
 
     @Column(nullable = false)
-    private String category; // e.g. POTHOLE, STREETLIGHT, TRASH, OTHER
+    private String category;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -47,20 +47,16 @@ public class Issue {
 
     private String address;
 
-    /**
-     * Public URL (or relative path) to the uploaded image.
-     */
     private String photoUrl;
 
-    /**
-     * Basic routing/assignment information for municipal staff.
-     */
     private String assignedDepartment;
     private String assignedTo;
 
     private String reporterName;
     private String reporterEmail;
     private String reporterPhone;
+
+    private Long reporterId;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -77,8 +73,6 @@ public class Issue {
     public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-
-    // Getters and setters
 
     public Long getId() {
         return id;
@@ -203,6 +197,14 @@ public class Issue {
         this.reporterPhone = reporterPhone;
     }
 
+    public Long getReporterId() {
+        return reporterId;
+    }
+
+    public void setReporterId(Long reporterId) {
+        this.reporterId = reporterId;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -227,4 +229,3 @@ public class Issue {
         this.resolvedAt = resolvedAt;
     }
 }
-

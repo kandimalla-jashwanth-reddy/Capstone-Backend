@@ -33,99 +33,99 @@ public class OTPService {
 
     @Transactional
     public void sendRegistrationOTP(String email) {
+        // Deprecated or kept for legacy/testing
+        sendEmailOTP(email, "REGISTRATION");
+    }
+
+    @Transactional
+    public void sendRegistrationMobileOTP(String phone) {
+        sendMobileOTP(phone, "REGISTRATION");
+    }
+
+    @Transactional
+    public void sendPasswordResetMobileOTP(String phone) {
+        sendMobileOTP(phone, "PASSWORD_RESET");
+    }
+
+    @Transactional
+    private void sendEmailOTP(String email, String purpose) {
         try {
-            System.out.println("STARTING OTP PROCESS FOR: " + email);
-
-            otpRepository.deleteByEmailAndPurpose(email, "REGISTRATION");
-
+            System.out.println("STARTING EMAIL OTP PROCESS FOR: " + email);
+            otpRepository.deleteByEmailAndPurpose(email, purpose);
             String otp = generateOTP();
             LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
-
-            OTPVerification otpVerification = new OTPVerification(email, otp, "REGISTRATION", expiryDate);
-            OTPVerification savedOtp = otpRepository.save(otpVerification);
-
-            System.out.println("OTP generated: " + otp + " for email: " + email);
-            System.out.println("OTP saved with ID: " + savedOtp.getId());
-
-            emailService.sendOtpEmail(email, otp, "account registration");
-            System.out.println("OTP process completed successfully");
-
+            OTPVerification otpVerification = new OTPVerification(email, null, otp, purpose, expiryDate);
+            otpRepository.save(otpVerification);
+            System.out.println("SIMULATION MODE: EMAIL OTP for " + email + " is: " + otp);
         } catch (Exception e) {
-            System.err.println("OTP PROCESS FAILED: " + e.getMessage());
+            System.err.println("EMAIL OTP PROCESS FAILED: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to send OTP: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to send OTP", e);
         }
     }
 
     @Transactional
-    public void sendPasswordResetOTP(String email) {
+    private void sendMobileOTP(String phone, String purpose) {
         try {
-            System.out.println("STARTING PASSWORD RESET OTP FOR: " + email);
-
-            otpRepository.deleteByEmailAndPurpose(email, "PASSWORD_RESET");
-
+            System.out.println("STARTING MOBILE OTP PROCESS FOR: " + phone);
+            otpRepository.deleteByPhoneAndPurpose(phone, purpose);
             String otp = generateOTP();
             LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
-
-            OTPVerification otpVerification = new OTPVerification(email, otp, "PASSWORD_RESET", expiryDate);
+            // Email is null for mobile OTP
+            OTPVerification otpVerification = new OTPVerification(null, phone, otp, purpose, expiryDate);
             otpRepository.save(otpVerification);
-
-            System.out.println("RESET OTP: " + otp + " for email: " + email);
-
-            emailService.sendOtpEmail(email, otp, "password reset");
-            System.out.println("Password reset OTP sent successfully");
-
+            System.out.println("SIMULATION MODE: MOBILE OTP for " + phone + " is: " + otp);
         } catch (Exception e) {
-            System.err.println("PASSWORD RESET OTP FAILED: " + e.getMessage());
+            System.err.println("MOBILE OTP PROCESS FAILED: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to send reset OTP", e);
+            throw new RuntimeException("Failed to send OTP", e);
+        }
+    }
+
+    @Transactional
+    public boolean verifyMobileOTP(String phone, String otp, String purpose) {
+        try {
+            System.out.println("Verifying Mobile OTP - Phone: " + phone + ", OTP: " + otp);
+            Optional<OTPVerification> otpOpt = otpRepository.findByPhoneAndPurposeAndUsedFalse(phone, purpose);
+
+            if (otpOpt.isPresent()) {
+                OTPVerification otpVerification = otpOpt.get();
+                if (otp.equals(otpVerification.getOtp())) {
+                    if (otpVerification.isExpired()) {
+                        otpRepository.delete(otpVerification);
+                        return false;
+                    }
+                    otpVerification.setUsed(true);
+                    otpRepository.save(otpVerification);
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            System.err.println("Error verifying Mobile OTP: " + e.getMessage());
+            return false;
         }
     }
 
     @Transactional
     public boolean verifyOTP(String email, String otp, String purpose) {
         try {
-            System.out.println("Verifying OTP - Email: " + email + ", OTP: " + otp + ", Purpose: " + purpose);
-
-            Optional<OTPVerification> otpOpt = otpRepository.findByEmailAndOtpAndPurposeAndUsedFalse(email, otp, purpose);
-
+            System.out.println("Verifying Email OTP - Email: " + email);
+            Optional<OTPVerification> otpOpt = otpRepository.findByEmailAndOtpAndPurposeAndUsedFalse(email, otp,
+                    purpose);
             if (otpOpt.isPresent()) {
                 OTPVerification otpVerification = otpOpt.get();
-                System.out.println("OTP found in database: " + otpVerification.getOtp());
-                System.out.println("OTP ID: " + otpVerification.getId());
-                System.out.println("OTP Expiry: " + otpVerification.getExpiryDate());
-                System.out.println("OTP Used: " + otpVerification.isUsed());
-
                 if (otpVerification.isExpired()) {
-                    System.out.println("OTP expired for: " + email);
                     otpRepository.delete(otpVerification);
                     return false;
                 }
-
                 otpVerification.setUsed(true);
                 otpRepository.save(otpVerification);
-                System.out.println("OTP marked as used and saved");
-                System.out.println("OTP verified successfully for: " + email);
                 return true;
-            } else {
-                System.out.println("OTP not found in database for email: " + email + " and OTP: " + otp);
-
-                Optional<OTPVerification> anyOtp = otpRepository.findByEmailAndPurposeAndUsedFalse(email, purpose);
-                if (anyOtp.isPresent()) {
-                    OTPVerification foundOtp = anyOtp.get();
-                    System.out.println("But found different OTP in database: " + foundOtp.getOtp());
-                    System.out.println("This OTP used status: " + foundOtp.isUsed());
-                    System.out.println("This OTP expired: " + foundOtp.isExpired());
-                } else {
-                    System.out.println("No OTP found for this email and purpose");
-                }
             }
-
             return false;
-
         } catch (Exception e) {
             System.err.println("Error verifying OTP: " + e.getMessage());
-            e.printStackTrace();
             return false;
         }
     }

@@ -36,11 +36,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Allow issue reporting and admin analytics from the SPA/mobile client.
                         .requestMatchers("/api/issues/**", "/api/admin/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .logout(logout -> logout.disable());
 

@@ -38,20 +38,15 @@ public class AuthController {
     }
 
     @PostMapping("/send-registration-otp")
-    public ResponseEntity<?> sendRegistrationOtp(@RequestBody AuthRequest.EmailRequest request) {
+    public ResponseEntity<?> sendRegistrationOtp(@RequestBody AuthRequest.MobileRequest request) {
         try {
-            System.out.println("SENDING REGISTRATION OTP TO: " + request.getEmail());
-
-            if (userService.findByEmail(request.getEmail()).isPresent()) {
-                return ResponseEntity.badRequest().body("Email already registered");
+            System.out.println("SENDING REGISTRATION MOBILE OTP TO: " + request.getPhone());
+            if (userService.findByPhone(request.getPhone()).isPresent()) {
+                return ResponseEntity.badRequest().body("Mobile number already registered");
             }
-
-            otpService.sendRegistrationOTP(request.getEmail());
-            return ResponseEntity.ok("OTP sent successfully! Check console for OTP code.");
-
+            otpService.sendRegistrationMobileOTP(request.getPhone());
+            return ResponseEntity.ok("OTP sent successfully to mobile! Check console for OTP code.");
         } catch (Exception ex) {
-            System.err.println("OTP SEND ERROR: " + ex.getMessage());
-            ex.printStackTrace();
             return ResponseEntity.badRequest().body("Failed to send OTP: " + ex.getMessage());
         }
     }
@@ -59,42 +54,20 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody AuthRequest.UserRegistrationRequest request) {
         try {
-            System.out.println("REGISTRATION ATTEMPT FOR: " + request.getEmail());
-            System.out.println("MOBILE: " + request.getPhone());
-            System.out.println("OTP PROVIDED: " + request.getOtp());
-            System.out.println("NAME: " + request.getName());
-
-            if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
-                Optional<User> existingUserWithMobile = userService.findByPhone(request.getPhone());
-                if (existingUserWithMobile.isPresent()) {
-                    return ResponseEntity.badRequest().body("Mobile number already registered");
-                }
+            if (request.getPhone() == null || request.getPhone().isEmpty()) {
+                return ResponseEntity.badRequest().body("Mobile number is required");
             }
 
-            System.out.println("CHECKING OTP STATUS BEFORE VERIFICATION:");
-            Optional<OTPVerification> existingOtp = otpRepository.findByEmailAndPurposeAndUsedFalse(request.getEmail(), "REGISTRATION");
-            if (existingOtp.isPresent()) {
-                OTPVerification otp = existingOtp.get();
-                System.out.println("FOUND OTP IN DB: " + otp.getOtp());
-                System.out.println("EXPIRY: " + otp.getExpiryDate());
-                System.out.println("USED: " + otp.isUsed());
-                System.out.println("EXPIRED: " + otp.isExpired());
-            } else {
-                System.out.println("NO OTP FOUND IN DATABASE FOR: " + request.getEmail());
+            if (userService.findByEmail(request.getEmail()).isPresent()) {
+                return ResponseEntity.badRequest().body("Email already registered");
+            }
+            if (userService.findByPhone(request.getPhone()).isPresent()) {
+                return ResponseEntity.badRequest().body("Mobile number already registered");
             }
 
-            boolean otpValid = otpService.verifyOTP(request.getEmail(), request.getOtp(), "REGISTRATION");
-            System.out.println("OTP VERIFICATION RESULT: " + otpValid);
-
+            boolean otpValid = otpService.verifyMobileOTP(request.getPhone(), request.getOtp(), "REGISTRATION");
             if (!otpValid) {
-                System.out.println("OTP VERIFICATION FAILED - CHECKING DATABASE AGAIN:");
-                Optional<OTPVerification> failedOtp = otpRepository.findByEmailAndPurposeAndUsedFalse(request.getEmail(), "REGISTRATION");
-                if (failedOtp.isPresent()) {
-                    OTPVerification otp = failedOtp.get();
-                    System.out.println("STILL FOUND OTP: " + otp.getOtp());
-                    System.out.println("USED STATUS: " + otp.isUsed());
-                }
-                return ResponseEntity.badRequest().body("Invalid or expired OTP. Please request a new OTP.");
+                return ResponseEntity.badRequest().body("Invalid or expired Mobile OTP. Please request a new OTP.");
             }
 
             User user = new User();
@@ -102,73 +75,52 @@ public class AuthController {
             user.setEmail(request.getEmail());
             user.setPhone(request.getPhone());
             user.setPassword(request.getPassword());
+            user.setRole(request.getRole() != null ? request.getRole().toUpperCase() : "CITIZEN");
 
-            User registeredUser = userService.register(user);
-            System.out.println("REGISTRATION SUCCESSFUL FOR: " + request.getEmail());
+            if ("ADMIN".equals(user.getRole())) {
+                if (request.getAdminId() == null || request.getAdminId().isEmpty()) {
+                    return ResponseEntity.badRequest().body("Admin ID required");
+                }
+                user.setAdminId(request.getAdminId());
+            }
+
+            userService.register(user);
             return ResponseEntity.ok("Registration successful!");
-
-        } catch (IllegalArgumentException ex) {
-            System.err.println("REGISTRATION ERROR: " + ex.getMessage());
-            return ResponseEntity.badRequest().body(ex.getMessage());
         } catch (Exception ex) {
-            System.err.println("UNEXPECTED REGISTRATION ERROR: " + ex.getMessage());
-            ex.printStackTrace();
             return ResponseEntity.badRequest().body("Registration failed: " + ex.getMessage());
         }
     }
 
     @PostMapping("/send-reset-otp")
-    public ResponseEntity<?> sendResetOtp(@RequestBody AuthRequest.EmailRequest request) {
+    public ResponseEntity<?> sendResetOtp(@RequestBody AuthRequest.MobileRequest request) {
         try {
-            System.out.println("SENDING RESET OTP TO: " + request.getEmail());
-
-            if (userService.findByEmail(request.getEmail()).isEmpty()) {
-                return ResponseEntity.badRequest().body("Email not registered");
+            System.out.println("SENDING RESET MOBILE OTP TO: " + request.getPhone());
+            if (userService.findByPhone(request.getPhone()).isEmpty()) {
+                return ResponseEntity.badRequest().body("Mobile number not registered");
             }
-
-            otpService.sendPasswordResetOTP(request.getEmail());
-            return ResponseEntity.ok("OTP sent successfully! Check console for OTP code.");
-
+            otpService.sendPasswordResetMobileOTP(request.getPhone());
+            return ResponseEntity.ok("OTP sent successfully to mobile! Check console for OTP code.");
         } catch (Exception ex) {
-            System.err.println("RESET OTP SEND ERROR: " + ex.getMessage());
-            ex.printStackTrace();
             return ResponseEntity.badRequest().body("Failed to send OTP");
         }
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody AuthRequest.PasswordResetRequest request) {
-        System.out.println("PASSWORD RESET FOR: " + request.getEmail());
-        System.out.println("OTP PROVIDED: " + request.getOtp());
-
         try {
-            System.out.println("CHECKING OTP STATUS BEFORE PASSWORD RESET:");
-            Optional<OTPVerification> existingOtp = otpRepository.findByEmailAndPurposeAndUsedFalse(request.getEmail(), "PASSWORD_RESET");
-            if (existingOtp.isPresent()) {
-                OTPVerification otp = existingOtp.get();
-                System.out.println("FOUND RESET OTP IN DB: " + otp.getOtp());
-                System.out.println("EXPIRY: " + otp.getExpiryDate());
-                System.out.println("USED: " + otp.isUsed());
-            }
-
-            boolean otpValid = otpService.verifyOTP(request.getEmail(), request.getOtp(), "PASSWORD_RESET");
-            System.out.println("RESET OTP VERIFICATION RESULT: " + otpValid);
-
+            boolean otpValid = otpService.verifyMobileOTP(request.getPhone(), request.getOtp(), "PASSWORD_RESET");
             if (!otpValid) {
-                return ResponseEntity.badRequest().body("Invalid or expired OTP. Please request a new OTP.");
+                return ResponseEntity.badRequest().body("Invalid or expired Mobile OTP");
             }
 
-            boolean success = userService.resetPassword(request.getEmail(), request.getNewPassword());
-            if (success) {
-                System.out.println("PASSWORD RESET SUCCESSFUL FOR: " + request.getEmail());
+            Optional<User> userContent = userService.findByPhone(request.getPhone());
+            if (userContent.isPresent()) {
+                userService.resetPassword(userContent.get().getEmail(), request.getNewPassword());
                 return ResponseEntity.ok("Password reset successful!");
             } else {
-                System.out.println("PASSWORD RESET FAILED - USER NOT FOUND: " + request.getEmail());
                 return ResponseEntity.badRequest().body("User not found");
             }
         } catch (Exception ex) {
-            System.err.println("PASSWORD RESET ERROR: " + ex.getMessage());
-            ex.printStackTrace();
             return ResponseEntity.badRequest().body("Password reset failed");
         }
     }
@@ -178,20 +130,42 @@ public class AuthController {
         System.out.println("LOGIN ATTEMPT FOR: " + request.getEmail());
 
         try {
-            UserDetails userDetails = userService.loadUserByUsername(request.getEmail());
+            UserDetails userDetails = null;
+            User user = null;
 
-            boolean passwordMatches = passwordEncoder.matches(request.getPassword(), userDetails.getPassword());
-
-            if (passwordMatches) {
-                System.out.println("LOGIN SUCCESSFUL FOR: " + request.getEmail());
-                return ResponseEntity.ok("Login successful");
+            Optional<User> userContent = userService.findByEmail(request.getEmail());
+            if (userContent.isPresent()) {
+                user = userContent.get();
             } else {
-                System.out.println("INVALID PASSWORD FOR: " + request.getEmail());
-                return ResponseEntity.badRequest().body("Invalid credentials");
+                System.out.println("Email not found, checking Admin ID...");
+                Optional<User> adminUser = userService.findByAdminId(request.getEmail());
+                if (adminUser.isPresent()) {
+                    user = adminUser.get();
+                }
+            }
+
+            if (user != null) {
+                boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPassword());
+
+                if (passwordMatches) {
+                    System.out.println("LOGIN SUCCESSFUL FOR: " + user.getEmail());
+                    java.util.Map<String, Object> response = new java.util.HashMap<>();
+                    response.put("message", "Login successful");
+                    response.put("role", user.getRole());
+                    response.put("userId", user.getId());
+                    response.put("email", user.getEmail());
+                    response.put("name", user.getName());
+                    return ResponseEntity.ok(response);
+                } else {
+                    System.out.println("INVALID PASSWORD FOR: " + request.getEmail());
+                    return ResponseEntity.badRequest().body("Invalid credentials");
+                }
+            } else {
+                return ResponseEntity.badRequest().body("User not found");
             }
         } catch (Exception ex) {
             System.err.println("LOGIN ERROR FOR: " + request.getEmail() + " - " + ex.getMessage());
-            return ResponseEntity.badRequest().body("Invalid credentials");
+            return ResponseEntity.badRequest().body("Login failed: " + ex.getMessage());
         }
     }
 

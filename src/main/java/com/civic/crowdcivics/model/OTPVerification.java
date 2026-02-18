@@ -11,14 +11,17 @@ public class OTPVerification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String email;
+
+    @Column(nullable = true)
+    private String phone;
 
     @Column(nullable = false)
     private String otp;
 
     @Column(nullable = false)
-    private String purpose; // REGISTRATION, PASSWORD_RESET
+    private String purpose;
 
     @Column(nullable = false)
     private LocalDateTime expiryDate;
@@ -26,10 +29,12 @@ public class OTPVerification {
     @Column(nullable = false)
     private boolean used = false;
 
-    public OTPVerification() {}
+    public OTPVerification() {
+    }
 
-    public OTPVerification(String email, String otp, String purpose, LocalDateTime expiryDate) {
+    public OTPVerification(String email, String phone, String otp, String purpose, LocalDateTime expiryDate) {
         this.email = email;
+        this.phone = phone;
         this.otp = otp;
         this.purpose = purpose;
         this.expiryDate = expiryDate;
@@ -38,6 +43,7 @@ public class OTPVerification {
     public Long getId() {
         return id;
     }
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -45,19 +51,50 @@ public class OTPVerification {
     public String getEmail() {
         return email;
     }
-    public void setEmail(String email) { this.email = email; }
 
-    public String getOtp() { return otp; }
-    public void setOtp(String otp) { this.otp = otp; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public String getPurpose() { return purpose; }
-    public void setPurpose(String purpose) { this.purpose = purpose; }
+    public String getPhone() {
+        return phone;
+    }
 
-    public LocalDateTime getExpiryDate() { return expiryDate; }
-    public void setExpiryDate(LocalDateTime expiryDate) { this.expiryDate = expiryDate; }
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
 
-    public boolean isUsed() { return used; }
-    public void setUsed(boolean used) { this.used = used; }
+    public String getOtp() {
+        return otp;
+    }
+
+    public void setOtp(String otp) {
+        this.otp = otp;
+    }
+
+    public String getPurpose() {
+        return purpose;
+    }
+
+    public void setPurpose(String purpose) {
+        this.purpose = purpose;
+    }
+
+    public LocalDateTime getExpiryDate() {
+        return expiryDate;
+    }
+
+    public void setExpiryDate(LocalDateTime expiryDate) {
+        this.expiryDate = expiryDate;
+    }
+
+    public boolean isUsed() {
+        return used;
+    }
+
+    public void setUsed(boolean used) {
+        this.used = used;
+    }
 
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiryDate);

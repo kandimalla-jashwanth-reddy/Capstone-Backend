@@ -80,13 +80,11 @@ public class UserService implements UserDetailsService {
     }
 
     public Optional<User> findByPhone(String phone) {
-        Optional<User> user = userRepository.findByPhone(phone);
-        if (user.isPresent()) {
-            System.out.println("FOUND USER WITH MOBILE: " + phone);
-        } else {
-            System.out.println("USER NOT FOUND WITH MOBILE: " + phone);
-        }
-        return user;
+        return userRepository.findByPhone(phone);
+    }
+
+    public Optional<User> findByAdminId(String adminId) {
+        return userRepository.findByAdminId(adminId);
     }
 
     public List<User> findAll() {
