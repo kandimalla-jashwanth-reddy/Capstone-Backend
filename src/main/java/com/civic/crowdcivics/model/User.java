@@ -20,21 +20,21 @@ public class User {
 
     private String role;
 
-    private String adminId;
-
     @Column(nullable = false, length = 60)
     private String password;
+
+    private String adminId;
+    private String department;
 
     public User() {
     }
 
-    public User(String name, String email, String phone, String password, String role, String adminId) {
+    public User(String name, String email, String phone, String password, String role) {
         this.name = name;
         this.email = email;
         this.phone = phone;
         this.password = password;
         this.role = role;
-        this.adminId = adminId;
     }
 
     public Long getId() {
@@ -93,6 +93,14 @@ public class User {
         this.adminId = adminId;
     }
 
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
     @Override
     public String toString() {
         return "User{" +
@@ -102,6 +110,7 @@ public class User {
                 ", phone='" + phone + '\'' +
                 ", role='" + role + '\'' +
                 ", adminId='" + adminId + '\'' +
+                ", department='" + department + '\'' +
                 ", password='"
                 + (password != null ? (password.startsWith("$2a$") ? "***ENCODED***" : "***RAW***") : "null") +
                 '}';

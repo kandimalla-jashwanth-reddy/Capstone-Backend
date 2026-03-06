@@ -31,12 +31,31 @@ public class IssueService {
         return issueRepository.findById(id);
     }
 
-    public Issue updateIssueStatus(Long id, Issue.Status status) {
+    public Issue updateIssueStatus(Long id, Issue.Status status, String resolutionPhotoUrl, String rejectionReason) {
         Optional<Issue> issueOpt = issueRepository.findById(id);
         if (issueOpt.isPresent()) {
             Issue issue = issueOpt.get();
             issue.setStatus(status);
+            if (status == Issue.Status.RESOLVED && resolutionPhotoUrl != null && !resolutionPhotoUrl.isEmpty()) {
+                issue.setResolutionPhotoUrl(resolutionPhotoUrl);
+            }
+            if (status == Issue.Status.REJECTED && rejectionReason != null && !rejectionReason.isEmpty()) {
+                issue.setRejectionReason(rejectionReason);
+            }
             return issueRepository.save(issue);
+        }
+        return null;
+    }
+
+    public Issue submitFeedback(Long id, String feedback, Integer rating) {
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        if (issueOpt.isPresent()) {
+            Issue issue = issueOpt.get();
+            if (issue.getRating() == null) {
+                issue.setFeedback(feedback);
+                issue.setRating(rating);
+                return issueRepository.save(issue);
+            }
         }
         return null;
     }

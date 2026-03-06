@@ -33,18 +33,12 @@ public class OTPService {
 
     @Transactional
     public void sendRegistrationOTP(String email) {
-        // Deprecated or kept for legacy/testing
         sendEmailOTP(email, "REGISTRATION");
     }
 
     @Transactional
-    public void sendRegistrationMobileOTP(String phone) {
-        sendMobileOTP(phone, "REGISTRATION");
-    }
-
-    @Transactional
-    public void sendPasswordResetMobileOTP(String phone) {
-        sendMobileOTP(phone, "PASSWORD_RESET");
+    public void sendPasswordResetOTP(String email) {
+        sendEmailOTP(email, "PASSWORD_RESET");
     }
 
     @Transactional
@@ -54,56 +48,17 @@ public class OTPService {
             otpRepository.deleteByEmailAndPurpose(email, purpose);
             String otp = generateOTP();
             LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
-            OTPVerification otpVerification = new OTPVerification(email, null, otp, purpose, expiryDate);
+            OTPVerification otpVerification = new OTPVerification(email, otp, purpose, expiryDate);
             otpRepository.save(otpVerification);
-            System.out.println("SIMULATION MODE: EMAIL OTP for " + email + " is: " + otp);
+
+            // Use EmailService to send the actual email
+            emailService.sendOtpEmail(email, otp, purpose);
+
+            System.out.println("EMAIL OTP for " + email + " generated: " + otp);
         } catch (Exception e) {
             System.err.println("EMAIL OTP PROCESS FAILED: " + e.getMessage());
             e.printStackTrace();
             throw new RuntimeException("Failed to send OTP", e);
-        }
-    }
-
-    @Transactional
-    private void sendMobileOTP(String phone, String purpose) {
-        try {
-            System.out.println("STARTING MOBILE OTP PROCESS FOR: " + phone);
-            otpRepository.deleteByPhoneAndPurpose(phone, purpose);
-            String otp = generateOTP();
-            LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES);
-            // Email is null for mobile OTP
-            OTPVerification otpVerification = new OTPVerification(null, phone, otp, purpose, expiryDate);
-            otpRepository.save(otpVerification);
-            System.out.println("SIMULATION MODE: MOBILE OTP for " + phone + " is: " + otp);
-        } catch (Exception e) {
-            System.err.println("MOBILE OTP PROCESS FAILED: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Failed to send OTP", e);
-        }
-    }
-
-    @Transactional
-    public boolean verifyMobileOTP(String phone, String otp, String purpose) {
-        try {
-            System.out.println("Verifying Mobile OTP - Phone: " + phone + ", OTP: " + otp);
-            Optional<OTPVerification> otpOpt = otpRepository.findByPhoneAndPurposeAndUsedFalse(phone, purpose);
-
-            if (otpOpt.isPresent()) {
-                OTPVerification otpVerification = otpOpt.get();
-                if (otp.equals(otpVerification.getOtp())) {
-                    if (otpVerification.isExpired()) {
-                        otpRepository.delete(otpVerification);
-                        return false;
-                    }
-                    otpVerification.setUsed(true);
-                    otpRepository.save(otpVerification);
-                    return true;
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            System.err.println("Error verifying Mobile OTP: " + e.getMessage());
-            return false;
         }
     }
 

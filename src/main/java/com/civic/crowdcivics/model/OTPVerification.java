@@ -14,8 +14,6 @@ public class OTPVerification {
     @Column(nullable = true)
     private String email;
 
-    @Column(nullable = true)
-    private String phone;
 
     @Column(nullable = false)
     private String otp;
@@ -32,9 +30,8 @@ public class OTPVerification {
     public OTPVerification() {
     }
 
-    public OTPVerification(String email, String phone, String otp, String purpose, LocalDateTime expiryDate) {
+    public OTPVerification(String email, String otp, String purpose, LocalDateTime expiryDate) {
         this.email = email;
-        this.phone = phone;
         this.otp = otp;
         this.purpose = purpose;
         this.expiryDate = expiryDate;
@@ -56,13 +53,6 @@ public class OTPVerification {
         this.email = email;
     }
 
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
 
     public String getOtp() {
         return otp;

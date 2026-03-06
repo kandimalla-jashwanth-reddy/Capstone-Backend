@@ -47,7 +47,22 @@ public class Issue {
 
     private String address;
 
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String photoUrl;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String resolutionPhotoUrl;
+
+    @Column(length = 2000)
+    private String feedback;
+
+    @Column(length = 2000)
+    private String rejectionReason;
+
+    @Column
+    private Integer rating;
 
     private String assignedDepartment;
     private String assignedTo;
@@ -157,6 +172,14 @@ public class Issue {
         this.photoUrl = photoUrl;
     }
 
+    public String getResolutionPhotoUrl() {
+        return resolutionPhotoUrl;
+    }
+
+    public void setResolutionPhotoUrl(String resolutionPhotoUrl) {
+        this.resolutionPhotoUrl = resolutionPhotoUrl;
+    }
+
     public String getAssignedDepartment() {
         return assignedDepartment;
     }
@@ -227,5 +250,29 @@ public class Issue {
 
     public void setResolvedAt(LocalDateTime resolvedAt) {
         this.resolvedAt = resolvedAt;
+    }
+
+    public String getFeedback() {
+        return feedback;
+    }
+
+    public void setFeedback(String feedback) {
+        this.feedback = feedback;
+    }
+
+    public Integer getRating() {
+        return rating;
+    }
+
+    public void setRating(Integer rating) {
+        this.rating = rating;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 }

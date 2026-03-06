@@ -64,7 +64,9 @@ public class IssueController {
 
         try {
             Issue.Status status = Issue.Status.valueOf(statusStr.toUpperCase());
-            Issue updatedIssue = issueService.updateIssueStatus(id, status);
+            String resolutionPhotoUrl = payload.get("resolutionPhotoUrl");
+            String rejectionReason = payload.get("rejectionReason");
+            Issue updatedIssue = issueService.updateIssueStatus(id, status, resolutionPhotoUrl, rejectionReason);
             if (updatedIssue != null) {
                 return ResponseEntity.ok(updatedIssue);
             } else {
@@ -72,6 +74,34 @@ public class IssueController {
             }
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body("Invalid status value");
+        }
+    }
+
+    @PutMapping("/{id}/feedback")
+    public ResponseEntity<?> submitFeedback(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
+        String feedback = (String) payload.get("feedback");
+        Integer rating = null;
+        if (payload.get("rating") != null) {
+            if (payload.get("rating") instanceof Integer) {
+                rating = (Integer) payload.get("rating");
+            } else {
+                try {
+                    rating = Integer.parseInt(payload.get("rating").toString());
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest().body("Rating must be an integer");
+                }
+            }
+        }
+
+        if (rating == null || rating < 1 || rating > 5) {
+            return ResponseEntity.badRequest().body("Valid rating between 1 and 5 is required");
+        }
+
+        Issue updatedIssue = issueService.submitFeedback(id, feedback, rating);
+        if (updatedIssue != null) {
+            return ResponseEntity.ok(updatedIssue);
+        } else {
+            return ResponseEntity.badRequest().body("Issue not found or feedback already submitted");
         }
     }
 }

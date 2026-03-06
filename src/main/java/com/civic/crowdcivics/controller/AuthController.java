@@ -38,14 +38,14 @@ public class AuthController {
     }
 
     @PostMapping("/send-registration-otp")
-    public ResponseEntity<?> sendRegistrationOtp(@RequestBody AuthRequest.MobileRequest request) {
+    public ResponseEntity<?> sendRegistrationOtp(@RequestBody AuthRequest.EmailRequest request) {
         try {
-            System.out.println("SENDING REGISTRATION MOBILE OTP TO: " + request.getPhone());
-            if (userService.findByPhone(request.getPhone()).isPresent()) {
-                return ResponseEntity.badRequest().body("Mobile number already registered");
+            System.out.println("SENDING REGISTRATION EMAIL OTP TO: " + request.getEmail());
+            if (userService.findByEmail(request.getEmail()).isPresent()) {
+                return ResponseEntity.badRequest().body("Email already registered");
             }
-            otpService.sendRegistrationMobileOTP(request.getPhone());
-            return ResponseEntity.ok("OTP sent successfully to mobile! Check console for OTP code.");
+            otpService.sendRegistrationOTP(request.getEmail());
+            return ResponseEntity.ok("OTP sent successfully to email!");
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body("Failed to send OTP: " + ex.getMessage());
         }
@@ -54,8 +54,8 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody AuthRequest.UserRegistrationRequest request) {
         try {
-            if (request.getPhone() == null || request.getPhone().isEmpty()) {
-                return ResponseEntity.badRequest().body("Mobile number is required");
+            if (request.getEmail() == null || request.getEmail().isEmpty()) {
+                return ResponseEntity.badRequest().body("Email is required");
             }
 
             if (userService.findByEmail(request.getEmail()).isPresent()) {
@@ -65,24 +65,27 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("Mobile number already registered");
             }
 
-            boolean otpValid = otpService.verifyMobileOTP(request.getPhone(), request.getOtp(), "REGISTRATION");
+            boolean otpValid = otpService.verifyOTP(request.getEmail(), request.getOtp(), "REGISTRATION");
             if (!otpValid) {
-                return ResponseEntity.badRequest().body("Invalid or expired Mobile OTP. Please request a new OTP.");
+                return ResponseEntity.badRequest().body("Invalid or expired Email OTP. Please request a new OTP.");
             }
 
+            String role = request.getRole() != null ? request.getRole().toUpperCase() : "CITIZEN";
             User user = new User();
+
+            if ("ADMIN".equals(role)) {
+                if (request.getAdminId() == null || !request.getAdminId().matches("\\d{8}")) {
+                    return ResponseEntity.badRequest().body("Admin ID must be exactly 8 digits");
+                }
+                user.setAdminId(request.getAdminId());
+                user.setDepartment(request.getDepartment());
+            }
+
             user.setName(request.getName());
             user.setEmail(request.getEmail());
             user.setPhone(request.getPhone());
             user.setPassword(request.getPassword());
-            user.setRole(request.getRole() != null ? request.getRole().toUpperCase() : "CITIZEN");
-
-            if ("ADMIN".equals(user.getRole())) {
-                if (request.getAdminId() == null || request.getAdminId().isEmpty()) {
-                    return ResponseEntity.badRequest().body("Admin ID required");
-                }
-                user.setAdminId(request.getAdminId());
-            }
+            user.setRole(role);
 
             userService.register(user);
             return ResponseEntity.ok("Registration successful!");
@@ -92,14 +95,14 @@ public class AuthController {
     }
 
     @PostMapping("/send-reset-otp")
-    public ResponseEntity<?> sendResetOtp(@RequestBody AuthRequest.MobileRequest request) {
+    public ResponseEntity<?> sendResetOtp(@RequestBody AuthRequest.EmailRequest request) {
         try {
-            System.out.println("SENDING RESET MOBILE OTP TO: " + request.getPhone());
-            if (userService.findByPhone(request.getPhone()).isEmpty()) {
-                return ResponseEntity.badRequest().body("Mobile number not registered");
+            System.out.println("SENDING RESET EMAIL OTP TO: " + request.getEmail());
+            if (userService.findByEmail(request.getEmail()).isEmpty()) {
+                return ResponseEntity.badRequest().body("Email not registered");
             }
-            otpService.sendPasswordResetMobileOTP(request.getPhone());
-            return ResponseEntity.ok("OTP sent successfully to mobile! Check console for OTP code.");
+            otpService.sendPasswordResetOTP(request.getEmail());
+            return ResponseEntity.ok("OTP sent successfully to email!");
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body("Failed to send OTP");
         }
@@ -108,14 +111,14 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody AuthRequest.PasswordResetRequest request) {
         try {
-            boolean otpValid = otpService.verifyMobileOTP(request.getPhone(), request.getOtp(), "PASSWORD_RESET");
+            boolean otpValid = otpService.verifyOTP(request.getEmail(), request.getOtp(), "PASSWORD_RESET");
             if (!otpValid) {
-                return ResponseEntity.badRequest().body("Invalid or expired Mobile OTP");
+                return ResponseEntity.badRequest().body("Invalid or expired Email OTP");
             }
 
-            Optional<User> userContent = userService.findByPhone(request.getPhone());
+            Optional<User> userContent = userService.findByEmail(request.getEmail());
             if (userContent.isPresent()) {
-                userService.resetPassword(userContent.get().getEmail(), request.getNewPassword());
+                userService.resetPassword(request.getEmail(), request.getNewPassword());
                 return ResponseEntity.ok("Password reset successful!");
             } else {
                 return ResponseEntity.badRequest().body("User not found");
@@ -125,22 +128,45 @@ public class AuthController {
         }
     }
 
+    @PutMapping("/update-password")
+    public ResponseEntity<?> updatePassword(@RequestBody AuthRequest.PasswordUpdateRequest request) {
+        try {
+            Optional<User> userOpt = userService.findByEmail(request.getEmail());
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body("User not found");
+            }
+
+            User user = userOpt.get();
+
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                return ResponseEntity.badRequest().body("Incorrect current password.");
+            }
+
+            userService.resetPassword(request.getEmail(), request.getNewPassword());
+            return ResponseEntity.ok("Password updated successfully!");
+
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body("Failed to update password: " + ex.getMessage());
+        }
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest.LoginRequest request) {
-        System.out.println("LOGIN ATTEMPT FOR: " + request.getEmail());
+        System.out.println("LOGIN ATTEMPT FOR: " + request.getEmail() + " AS ROLE: " + request.getRole());
 
         try {
-            UserDetails userDetails = null;
             User user = null;
 
-            Optional<User> userContent = userService.findByEmail(request.getEmail());
-            if (userContent.isPresent()) {
-                user = userContent.get();
-            } else {
-                System.out.println("Email not found, checking Admin ID...");
+            if ("ADMIN".equalsIgnoreCase(request.getRole())) {
                 Optional<User> adminUser = userService.findByAdminId(request.getEmail());
-                if (adminUser.isPresent()) {
+                if (adminUser.isPresent() && "ADMIN".equalsIgnoreCase(adminUser.get().getRole())) {
                     user = adminUser.get();
+                }
+            } else {
+                Optional<User> userContent = userService.findByEmail(request.getEmail());
+                if (userContent.isPresent() && !"ADMIN".equalsIgnoreCase(userContent.get().getRole())) {
+                    user = userContent.get();
                 }
             }
 
@@ -175,7 +201,21 @@ public class AuthController {
         if (user.isPresent()) {
             User userData = user.get();
             userData.setPassword("HIDDEN");
-            return ResponseEntity.ok(userData);
+
+            // To be absolutely sure adminId is included if it's a MunicipalStaff
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
+            response.put("id", userData.getId());
+            response.put("name", userData.getName());
+            response.put("email", userData.getEmail());
+            response.put("phone", userData.getPhone());
+            response.put("role", userData.getRole());
+
+            if ("ADMIN".equals(userData.getRole())) {
+                response.put("adminId", userData.getAdminId());
+                response.put("department", userData.getDepartment());
+            }
+
+            return ResponseEntity.ok(response);
         } else {
             return ResponseEntity.notFound().build();
         }
