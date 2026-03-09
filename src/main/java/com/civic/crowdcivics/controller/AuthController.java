@@ -202,7 +202,6 @@ public class AuthController {
             User userData = user.get();
             userData.setPassword("HIDDEN");
 
-            // To be absolutely sure adminId is included if it's a MunicipalStaff
             java.util.Map<String, Object> response = new java.util.HashMap<>();
             response.put("id", userData.getId());
             response.put("name", userData.getName());

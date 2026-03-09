@@ -51,7 +51,6 @@ public class OTPService {
             OTPVerification otpVerification = new OTPVerification(email, otp, purpose, expiryDate);
             otpRepository.save(otpVerification);
 
-            // Use EmailService to send the actual email
             emailService.sendOtpEmail(email, otp, purpose);
 
             System.out.println("EMAIL OTP for " + email + " generated: " + otp);

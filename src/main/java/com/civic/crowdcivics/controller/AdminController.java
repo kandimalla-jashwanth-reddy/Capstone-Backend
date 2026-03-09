@@ -23,12 +23,17 @@ public class AdminController {
         @Autowired
         private IssueService issueService;
 
+        @Autowired
+        private com.civic.crowdcivics.service.UserService userService;
+
         @GetMapping("/summary")
         public ResponseEntity<Map<String, Object>> getAnalyticsSummary() {
                 List<Issue> allIssues = issueService.getAllIssues();
 
                 Map<String, Object> summary = new HashMap<>();
                 summary.put("totalIssues", allIssues.size());
+                summary.put("totalCitizens", userService.countUsersByRole("CITIZEN"));
+                summary.put("totalStaff", userService.countUsersByRole("ADMIN"));
 
                 Map<String, Long> byStatus = allIssues.stream()
                                 .collect(Collectors.groupingBy(issue -> issue.getStatus().name(),
