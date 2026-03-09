@@ -48,11 +48,11 @@ public class Issue {
     private String address;
 
     @Lob
-    @Column(columnDefinition = "LONGTEXT")
+    @Column(columnDefinition = "TEXT")
     private String photoUrl;
 
     @Lob
-    @Column(columnDefinition = "LONGTEXT")
+    @Column(columnDefinition = "TEXT")
     private String resolutionPhotoUrl;
 
     @Column(length = 2000)
