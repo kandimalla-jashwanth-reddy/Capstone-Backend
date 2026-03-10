@@ -13,4 +13,6 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
     List<Issue> findByStatus(Issue.Status status);
 
     List<Issue> findByCategory(String category);
+
+    List<Issue> findByAssignedDepartment(String assignedDepartment);
 }

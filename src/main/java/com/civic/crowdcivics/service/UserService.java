@@ -83,6 +83,10 @@ public class UserService implements UserDetailsService {
         return userRepository.findByPhone(phone);
     }
 
+    public Optional<User> findById(Long id) {
+        return userRepository.findById(id);
+    }
+
     public Optional<User> findByAdminId(String adminId) {
         return userRepository.findByAdminId(adminId);
     }
@@ -135,7 +139,7 @@ public class UserService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPassword())
-                .roles("USER")
+                .roles(user.getRole())
                 .build();
     }
 

@@ -4,31 +4,90 @@ import com.civic.crowdcivics.model.Issue;
 import com.civic.crowdcivics.repository.IssueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@Transactional
 public class IssueService {
 
     @Autowired
     private IssueRepository issueRepository;
 
+    @Autowired
+    private UserService userService;
+
     public Issue createIssue(Issue issue) {
+        // Populate reporter name if missing
+        if ((issue.getReporterName() == null || issue.getReporterName().trim().isEmpty())
+                && issue.getReporterId() != null) {
+            userService.findById(issue.getReporterId()).ifPresent(user -> {
+                issue.setReporterName(user.getName());
+            });
+        } else if ((issue.getReporterName() == null || issue.getReporterName().trim().isEmpty())
+                && issue.getReporterEmail() != null) {
+            userService.findByEmail(issue.getReporterEmail()).ifPresent(user -> {
+                issue.setReporterName(user.getName());
+            });
+        }
+
         issue.setAssignedDepartment(determineDepartment(issue.getCategory()));
         return issueRepository.save(issue);
     }
 
     public List<Issue> getAllIssues() {
-        return issueRepository.findAll();
+        List<Issue> issues = issueRepository.findAll();
+        populateReporterNames(issues);
+        return issues;
     }
 
     public List<Issue> getIssuesByReporter(Long reporterId) {
-        return issueRepository.findByReporterId(reporterId);
+        List<Issue> issues = issueRepository.findByReporterId(reporterId);
+        populateReporterNames(issues);
+        return issues;
     }
 
     public Optional<Issue> getIssueById(Long id) {
-        return issueRepository.findById(id);
+        Optional<Issue> issueOpt = issueRepository.findById(id);
+        issueOpt.ifPresent(this::populateReporterName);
+        return issueOpt;
+    }
+
+    public List<Issue> getIssuesByDepartment(String department) {
+        List<Issue> issues = issueRepository.findByAssignedDepartment(department);
+        populateReporterNames(issues);
+        return issues;
+    }
+
+    private void populateReporterNames(List<Issue> issues) {
+        for (Issue issue : issues) {
+            populateReporterName(issue);
+        }
+    }
+
+    private void populateReporterName(Issue issue) {
+        if (issue.getReporterName() == null || issue.getReporterName().trim().isEmpty() ||
+                "Anonymous Citizen".equalsIgnoreCase(issue.getReporterName().trim())) {
+
+            if (issue.getReporterId() != null) {
+                userService.findById(issue.getReporterId()).ifPresent(user -> {
+                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                        System.out.println("Enriching issue " + issue.getId() + " with name: " + user.getName());
+                        issue.setReporterName(user.getName());
+                    }
+                });
+            } else if (issue.getReporterEmail() != null) {
+                userService.findByEmail(issue.getReporterEmail()).ifPresent(user -> {
+                    if (user.getName() != null && !user.getName().trim().isEmpty()) {
+                        System.out.println(
+                                "Enriching issue " + issue.getId() + " with name (via email): " + user.getName());
+                        issue.setReporterName(user.getName());
+                    }
+                });
+            }
+        }
     }
 
     public Issue updateIssueStatus(Long id, Issue.Status status, String resolutionPhotoUrl, String rejectionReason) {
@@ -73,12 +132,12 @@ public class IssueService {
             case "TRASH":
             case "GARBAGE":
             case "SANITATION":
-                return "Sanitation Department";
+                return "Sanitation";
             case "WATER":
             case "PIPE":
-                return "Water Works";
+                return "Water Department";
             default:
-                return "General Administration";
+                return "Municipality (General)";
         }
     }
 }

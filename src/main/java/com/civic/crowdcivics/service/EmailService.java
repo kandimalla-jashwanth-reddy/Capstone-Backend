@@ -1,6 +1,7 @@
 package com.civic.crowdcivics.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,9 @@ public class EmailService {
 
     @Autowired
     private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username}")
+    private String senderEmail;
 
     public void sendOtpEmail(String toEmail, String otp, String purpose) {
         try {
@@ -21,12 +25,11 @@ public class EmailService {
 
             if (mailSender == null) {
                 System.out.println("MailSender is NULL - Email configuration issue!");
-                System.out.println("OTP for " + purpose + ": " + otp + " (Email not sent)");
-                return;
+                throw new RuntimeException("MailSender is not configured");
             }
 
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom("kandimallajashwanthreddy594@gmail.com");
+            message.setFrom(senderEmail);
             message.setTo(toEmail);
             message.setSubject("Your OTP for " + purpose + " - CrowdCivics");
             message.setText(
@@ -35,8 +38,7 @@ public class EmailService {
                             "This OTP is valid for 10 minutes.\n\n" +
                             "If you didn't request this, please ignore this email.\n\n" +
                             "Best regards,\n" +
-                            "CrowdCivics Team"
-            );
+                            "CrowdCivics Team");
 
             mailSender.send(message);
             System.out.println("REAL EMAIL SENT SUCCESSFULLY to: " + toEmail);
@@ -44,15 +46,13 @@ public class EmailService {
 
         } catch (Exception e) {
             System.err.println("EMAIL SENDING FAILED: " + e.getMessage());
-            System.out.println("OTP for " + purpose + ": " + otp + " (Email failed)");
-            e.printStackTrace();
-
-            System.out.println("=".repeat(50));
-            System.out.println("YOUR OTP FOR " + purpose.toUpperCase());
-            System.out.println("Email: " + toEmail);
-            System.out.println("OTP: " + otp);
-            System.out.println("Valid for: 10 minutes");
-            System.out.println("=".repeat(50));
+            System.out.println("\n" + "#".repeat(60));
+            System.out.println("### FALLBACK: YOUR OTP FOR " + purpose.toUpperCase() + " ###");
+            System.out.println("# Email: " + toEmail);
+            System.out.println("# OTP: " + otp);
+            System.out.println("# (Because mail server authentication failed)");
+            System.out.println("#".repeat(60) + "\n");
+            throw e; // Rethrow to let the controller handled the failure
         }
     }
 }

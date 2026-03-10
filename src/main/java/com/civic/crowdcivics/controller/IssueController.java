@@ -45,6 +45,11 @@ public class IssueController {
         return issueService.getIssuesByReporter(userId);
     }
 
+    @GetMapping("/department/{department}")
+    public List<Issue> getIssuesByDepartment(@PathVariable String department) {
+        return issueService.getIssuesByDepartment(department);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> getIssueById(@PathVariable Long id) {
         Optional<Issue> issue = issueService.getIssueById(id);

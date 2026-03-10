@@ -157,16 +157,28 @@ public class AuthController {
 
         try {
             User user = null;
+            Optional<User> userOpt;
 
             if ("ADMIN".equalsIgnoreCase(request.getRole())) {
-                Optional<User> adminUser = userService.findByAdminId(request.getEmail());
-                if (adminUser.isPresent() && "ADMIN".equalsIgnoreCase(adminUser.get().getRole())) {
-                    user = adminUser.get();
-                }
+                // Admin MUST login with Admin ID
+                userOpt = userService.findByAdminId(request.getEmail());
             } else {
-                Optional<User> userContent = userService.findByEmail(request.getEmail());
-                if (userContent.isPresent() && !"ADMIN".equalsIgnoreCase(userContent.get().getRole())) {
-                    user = userContent.get();
+                // Citizen/Others login with Email
+                userOpt = userService.findByEmail(request.getEmail());
+            }
+
+            if (userOpt.isPresent()) {
+                user = userOpt.get();
+                // Double check role compatibility
+                if (!user.getRole().equalsIgnoreCase(request.getRole())) {
+                    System.out.println("ROLE MISMATCH: DB=" + user.getRole() + ", Attempted=" + request.getRole());
+                    if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+                        return ResponseEntity.badRequest()
+                                .body("Please login through the Municipal Staff portal using your Admin ID.");
+                    } else {
+                        return ResponseEntity.badRequest()
+                                .body("Please login through the Citizen portal using your Email.");
+                    }
                 }
             }
 

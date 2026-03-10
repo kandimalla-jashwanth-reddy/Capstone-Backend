@@ -1,5 +1,6 @@
 package com.civic.crowdcivics.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -47,11 +48,9 @@ public class Issue {
 
     private String address;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String photoUrl;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String resolutionPhotoUrl;
 
