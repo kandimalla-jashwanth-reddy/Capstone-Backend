@@ -1,6 +1,7 @@
 package com.civic.crowdcivics.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "users")
@@ -20,11 +21,13 @@ public class User {
 
     private String role;
 
+    @JsonIgnore
     @Column(nullable = false, length = 60)
     private String password;
 
     private String adminId;
     private String department;
+
 
     public User() {
     }
@@ -100,6 +103,8 @@ public class User {
     public void setDepartment(String department) {
         this.department = department;
     }
+
+
 
     @Override
     public String toString() {

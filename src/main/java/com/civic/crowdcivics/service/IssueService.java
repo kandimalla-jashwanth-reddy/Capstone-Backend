@@ -1,12 +1,15 @@
 package com.civic.crowdcivics.service;
 
+import com.civic.crowdcivics.exception.VerificationException;
 import com.civic.crowdcivics.model.Issue;
 import com.civic.crowdcivics.repository.IssueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -19,7 +22,32 @@ public class IssueService {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private ImageAnalysisService imageAnalysisService;
+
     public Issue createIssue(Issue issue) {
+        // Enforce Image Verification
+        if (issue.getPhotoUrl() != null && issue.getPhotoUrl().startsWith("data:image/")) {
+            try {
+                Map<String, Object> analysis = imageAnalysisService.analyzeBase64Image(issue.getPhotoUrl());
+                String identifiedCategory = (String) analysis.getOrDefault("identified_category", "OTHER");
+
+                if ("OTHER".equalsIgnoreCase(identifiedCategory)) {
+                    throw new VerificationException("Verification Failed: The uploaded photo does not appear to be a valid civic issue. " +
+                            "Please upload a clear photo of a pothole, broken streetlight, garbage, or water leak.");
+                }
+
+                // Auto-fix category if user selected OTHER but AI identified a specific one
+                if ("OTHER".equalsIgnoreCase(issue.getCategory()) && !"OTHER".equalsIgnoreCase(identifiedCategory)) {
+                    issue.setCategory(identifiedCategory);
+                }
+
+            } catch (IOException e) {
+                System.err.println("Verification failed due to error: " + e.getMessage());
+                throw new VerificationException("Image verification service is currently unavailable. Please try again later.");
+            }
+        }
+
         // Populate reporter name if missing
         if ((issue.getReporterName() == null || issue.getReporterName().trim().isEmpty())
                 && issue.getReporterId() != null) {

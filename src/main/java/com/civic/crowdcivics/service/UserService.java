@@ -146,4 +146,5 @@ public class UserService implements UserDetailsService {
     public long countUsersByRole(String role) {
         return userRepository.countByRole(role);
     }
+
 }

@@ -4,10 +4,7 @@ import com.civic.crowdcivics.model.Issue;
 import com.civic.crowdcivics.service.IssueService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -52,5 +49,10 @@ public class AdminController {
                 summary.put("avgResolutionHours", avgResolutionHours);
 
                 return ResponseEntity.ok(summary);
+        }
+
+        @GetMapping("/users")
+        public ResponseEntity<List<com.civic.crowdcivics.model.User>> getAllUsers() {
+                return ResponseEntity.ok(userService.findAll());
         }
 }

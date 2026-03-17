@@ -183,6 +183,7 @@ public class AuthController {
             }
 
             if (user != null) {
+
                 boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPassword());
 
                 if (passwordMatches) {
