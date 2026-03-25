@@ -32,9 +32,10 @@ public class IssueService {
                 Map<String, Object> analysis = imageAnalysisService.analyzeBase64Image(issue.getPhotoUrl());
                 String identifiedCategory = (String) analysis.getOrDefault("identified_category", "OTHER");
 
-                if ("OTHER".equalsIgnoreCase(identifiedCategory)) {
-                    throw new VerificationException("Verification Failed: The uploaded photo does not appear to be a valid civic issue. " +
-                            "Please upload a clear photo of a pothole, broken streetlight, garbage, or water leak.");
+                if ("OTHER".equalsIgnoreCase(identifiedCategory) || !((boolean) analysis.getOrDefault("isValid", true))) {
+                    String reason = (String) analysis.getOrDefault("rejectionReason", 
+                            "The uploaded photo does not appear to be a valid civic issue.");
+                    throw new VerificationException("Verification Failed: " + reason);
                 }
 
                 // Auto-fix category if user selected OTHER but AI identified a specific one

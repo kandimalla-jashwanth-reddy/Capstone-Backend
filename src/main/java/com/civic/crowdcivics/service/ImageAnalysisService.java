@@ -11,13 +11,14 @@ import org.springframework.http.*;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.google.genai.Client;
+import com.google.genai.types.Content;
+import com.google.genai.types.GenerateContentResponse;
+import com.google.genai.types.Part;
 import java.io.*;
-import java.util.Base64;
-import java.io.FileOutputStream;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.Base64;
 
 @Service
 public class ImageAnalysisService {
@@ -31,40 +32,53 @@ public class ImageAnalysisService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final String YOLO_API_URL = "http://localhost:5000/analyze";
+    @Value("${gemini.api.key}")
+    private String geminiApiKey;
+
+    @Value("${gemini.api.model:gemini-1.5-flash-8b}")
+    private String geminiModel;
 
     public Map<String, Object> analyzeImage(MultipartFile file) throws IOException {
         Map<String, Object> results = new HashMap<>();
+        File tempFile = null;
 
         try {
-            // 1. Local YOLO Detection (Fast and Offline)
-            File tempFile = convert(file);
-            Map<String, Object> yoloResults = callYoloApi(tempFile);
-            
-            String identifiedCategory = (String) yoloResults.getOrDefault("identified_category", "OTHER");
-            results.put("identified_category", identifiedCategory);
-            results.put("detections", yoloResults.get("detections"));
+            tempFile = convert(file);
 
-            // 2. SightEngine Security Checks (Morphed & Camera Source)
+            // 1. SightEngine Security Check
             Map<String, Object> securityResults = callSightEngineApi(tempFile);
-            results.putAll(securityResults);
+            boolean isMorphed = (boolean) securityResults.getOrDefault("isMorphed", false);
+            results.put("isMorphed", isMorphed);
+            results.put("aiGenConfidence", securityResults.getOrDefault("aiGenConfidence", 0.0));
 
-            // Cleanup temp file
-            if (tempFile.exists()) { tempFile.delete(); }
+            // 2. Gemini Identification
+            String identifiedCategory = identifyWithGemini(tempFile);
+            results.put("identified_category", identifiedCategory);
 
-            // Final validity check: Must have identified category AND be a valid camera photo (not morphed)
-            boolean isValid = !identifiedCategory.equals("OTHER") 
-                && !(boolean)results.getOrDefault("isMorphed", false)
-                && (boolean)results.getOrDefault("isCameraSource", true);
-            
+            // Valid = NOT morphed AND Gemini detected a real civic issue category
+            boolean isValid = !isMorphed && !identifiedCategory.equalsIgnoreCase("OTHER");
             results.put("isValid", isValid);
             results.put("verificationStatus", isValid ? "VALID" : "INVALID");
+
+            if (!isValid) {
+                if (isMorphed) {
+                    results.put("rejectionReason", "Photo appears to be manipulated or AI-generated. Please upload an original photo.");
+                } else {
+                    results.put("rejectionReason", "No clear civic issue (pothole, garbage, streetlight, water leak) detected in the photo.");
+                }
+            }
 
         } catch (Exception e) {
             System.err.println("Analysis failed: " + e.getMessage());
             results.put("isValid", false);
             results.put("identified_category", "OTHER");
+            results.put("isMorphed", false);
+            results.put("rejectionReason", "Verification service error: " + e.getMessage());
             results.put("error", e.getMessage());
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                tempFile.delete();
+            }
         }
 
         return results;
@@ -84,34 +98,62 @@ public class ImageAnalysisService {
             fos.write(decodedBytes);
         }
 
-        Map<String, Object> results = new HashMap<>();
         try {
-            Map<String, Object> yoloResults = callYoloApi(tempFile);
-            String identifiedCategory = (String) yoloResults.getOrDefault("identified_category", "OTHER");
-            results.put("identified_category", identifiedCategory);
-            results.put("isValid", true);
-            results.put("verificationStatus", "VALID");
-            results.put("detections", yoloResults.get("detections"));
+            return analyzeImage(new CustomMultipartFile(tempFile));
         } finally {
             if (tempFile.exists()) {
                 tempFile.delete();
             }
         }
-        return results;
+    }
+
+    private String identifyWithGemini(File file) {
+        try {
+            // Using the official Google Gen AI SDK (com.google.genai)
+            Client client = Client.builder().apiKey(geminiApiKey).build();
+            
+            byte[] fileContent = Files.readAllBytes(file.toPath());
+            
+            String prompt = "Analyze this image and identify if it shows one of the following civic issues:\n" +
+                    "- STREETLIGHT (broken, flickering, or damaged street lights)\n" +
+                    "- POTHOLE (holes or damage in the road surface)\n" +
+                    "- GARBAGE (overflowing bins, litter, or illegal dumping)\n" +
+                    "- WATER (water leakage, burst pipes, or flooding)\n" +
+                    "\n" +
+                    "If it accurately fits one of these, return ONLY the category name in uppercase. \n" +
+                    "If it doesn't clearly fit any of these, return 'OTHER'.";
+
+            Part imagePart = Part.fromBytes(fileContent, "image/jpeg");
+            Part textPart = Part.fromText(prompt);
+
+            GenerateContentResponse response = client.models.generateContent(
+                geminiModel, 
+                Content.fromParts(textPart, imagePart),
+                null
+            );
+
+            if (response != null && response.text() != null) {
+                String text = response.text().trim().toUpperCase();
+                List<String> validCategories = List.of("STREETLIGHT", "POTHOLE", "GARBAGE", "WATER");
+                return validCategories.contains(text) ? text : "OTHER";
+            }
+        } catch (Exception e) {
+            System.err.println("Gemini SDK call failed: " + e.getMessage());
+        }
+        return "OTHER";
     }
 
     private Map<String, Object> callSightEngineApi(File file) {
         Map<String, Object> securityResults = new HashMap<>();
-        // Default values
         securityResults.put("isMorphed", false);
-        securityResults.put("isCameraSource", true);
+        securityResults.put("aiGenConfidence", 0.0); // Initialize to 0.0
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("media", new FileSystemResource(file));
-        body.add("models", "genai,properties");
+        body.add("models", "genai");
         body.add("api_user", sightEngineApiUser);
         body.add("api_secret", sightEngineApiSecret);
 
@@ -120,57 +162,36 @@ public class ImageAnalysisService {
         try {
             ResponseEntity<JsonNode> response = restTemplate.postForEntity("https://api.sightengine.com/1.0/check.json", requestEntity, JsonNode.class);
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                JsonNode root = response.getBody();
-                
-                // 1. AI Generated Check
-                double aiScore = root.path("genai").path("confidence").asDouble(0.0);
-                boolean isMorphed = aiScore > 0.5;
-                securityResults.put("isMorphed", isMorphed);
+                double aiScore = response.getBody().path("genai").path("confidence").asDouble(0.0);
+                securityResults.put("isMorphed", aiScore > 0.5);
                 securityResults.put("aiGenConfidence", aiScore);
-
-                // 3. Camera Source Check (Taken by camera vs Google/Web)
-                // If it has camera metadata (make/model), we treat it as camera source.
-                // Web/Google images usually lack these or have "software" signatures.
-                JsonNode props = root.path("properties");
-                boolean hasExif = !props.path("exif").isMissingNode() && props.path("exif").has("Make");
-                securityResults.put("isCameraSource", hasExif);
             }
         } catch (Exception e) {
             System.err.println("SightEngine API call failed: " + e.getMessage());
-            // Fail safe: assume valid if API is down, or strict: assume invalid.
-            // Keeping default (true) for now but logging the error.
         }
         return securityResults;
-    }
-
-    private Map<String, Object> callYoloApi(File file) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("image", new FileSystemResource(file));
-
-        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-
-        try {
-            ResponseEntity<JsonNode> response = restTemplate.postForEntity(YOLO_API_URL, requestEntity, JsonNode.class);
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                JsonNode root = response.getBody();
-                Map<String, Object> res = new HashMap<>();
-                res.put("identified_category", root.path("identified_category").asText("OTHER"));
-                res.put("detections", root.path("detections"));
-                return res;
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to connect to Python YOLO API at " + YOLO_API_URL + ". Is the server running?");
-            throw e;
-        }
-        return new HashMap<>();
     }
 
     private File convert(MultipartFile file) throws IOException {
         File convFile = new File(System.getProperty("java.io.tmpdir") + "/" + file.getOriginalFilename());
         file.transferTo(convFile);
         return convFile;
+    }
+
+    private static class CustomMultipartFile implements MultipartFile {
+        private final File file;
+
+        public CustomMultipartFile(File file) {
+            this.file = file;
+        }
+
+        @Override public String getName() { return file.getName(); }
+        @Override public String getOriginalFilename() { return file.getName(); }
+        @Override public String getContentType() { return "image/jpeg"; }
+        @Override public boolean isEmpty() { return file.length() == 0; }
+        @Override public long getSize() { return file.length(); }
+        @Override public byte[] getBytes() throws IOException { return Files.readAllBytes(file.toPath()); }
+        @Override public InputStream getInputStream() throws IOException { return new FileInputStream(file); }
+        @Override public void transferTo(File dest) throws IOException, IllegalStateException { Files.copy(file.toPath(), dest.toPath()); }
     }
 }
