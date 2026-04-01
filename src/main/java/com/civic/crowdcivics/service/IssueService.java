@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,28 +26,48 @@ public class IssueService {
     @Autowired
     private ImageAnalysisService imageAnalysisService;
 
+    @Autowired
+    private FileStorageService fileStorageService;
+
     public Issue createIssue(Issue issue) {
-        // Enforce Image Verification
-        if (issue.getPhotoUrl() != null && issue.getPhotoUrl().startsWith("data:image/")) {
-            try {
-                Map<String, Object> analysis = imageAnalysisService.analyzeBase64Image(issue.getPhotoUrl());
-                String identifiedCategory = (String) analysis.getOrDefault("identified_category", "OTHER");
+        // Save photo URLs if they are Base64
+        if (issue.getPhotoUrls() != null && !issue.getPhotoUrls().isEmpty()) {
+            List<String> rawBase64Photos = new ArrayList<>(issue.getPhotoUrls());
+            List<String> finalUrls = new ArrayList<>();
+            
+            for (int i = 0; i < rawBase64Photos.size(); i++) {
+                String photoData = rawBase64Photos.get(i);
+                if (photoData != null && photoData.startsWith("data:image/")) {
+                    try {
+                        // 1. Analyze for verification
+                        Map<String, Object> analysis = imageAnalysisService.analyzeBase64Image(photoData);
+                        String identifiedCategory = (String) analysis.getOrDefault("identified_category", "OTHER");
 
-                if ("OTHER".equalsIgnoreCase(identifiedCategory) || !((boolean) analysis.getOrDefault("isValid", true))) {
-                    String reason = (String) analysis.getOrDefault("rejectionReason", 
-                            "The uploaded photo does not appear to be a valid civic issue.");
-                    throw new VerificationException("Verification Failed: " + reason);
+                        if ("OTHER".equalsIgnoreCase(identifiedCategory) || !((boolean) analysis.getOrDefault("isValid", true))) {
+                            String reason = (String) analysis.getOrDefault("rejectionReason", 
+                                    "One of the uploaded photos does not appear to be a valid civic issue.");
+                            throw new VerificationException("Verification Failed: " + reason);
+                        }
+
+                        // 2. Save as file and get URL
+                        String url = fileStorageService.saveBase64Image(photoData, "issue_" + i);
+                        finalUrls.add(url);
+
+                        // Auto-fix category if user selected OTHER but AI identified a specific one
+                        if ("OTHER".equalsIgnoreCase(issue.getCategory()) && !"OTHER".equalsIgnoreCase(identifiedCategory)) {
+                            issue.setCategory(identifiedCategory);
+                        }
+
+                    } catch (IOException e) {
+                        System.err.println("Verification or storage failed due to error: " + e.getMessage());
+                        throw new VerificationException("Image storage service is currently unavailable. Please try again later.");
+                    }
+                } else if (photoData != null && photoData.startsWith("/uploads/")) {
+                    // Already a URL (maybe from a retry or edit)
+                    finalUrls.add(photoData);
                 }
-
-                // Auto-fix category if user selected OTHER but AI identified a specific one
-                if ("OTHER".equalsIgnoreCase(issue.getCategory()) && !"OTHER".equalsIgnoreCase(identifiedCategory)) {
-                    issue.setCategory(identifiedCategory);
-                }
-
-            } catch (IOException e) {
-                System.err.println("Verification failed due to error: " + e.getMessage());
-                throw new VerificationException("Image verification service is currently unavailable. Please try again later.");
             }
+            issue.setPhotoUrls(finalUrls);
         }
 
         // Populate reporter name if missing

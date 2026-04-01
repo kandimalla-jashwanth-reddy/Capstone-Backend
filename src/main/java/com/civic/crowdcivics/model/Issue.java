@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "issues")
@@ -48,8 +50,10 @@ public class Issue {
 
     private String address;
 
-    @Column(columnDefinition = "TEXT")
-    private String photoUrl;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "issue_photos", joinColumns = @JoinColumn(name = "issue_id"))
+    @Column(name = "photo_url", columnDefinition = "TEXT")
+    private List<String> photoUrls = new ArrayList<>();
 
     @Column(columnDefinition = "TEXT")
     private String resolutionPhotoUrl;
@@ -163,12 +167,26 @@ public class Issue {
         this.address = address;
     }
 
+    public List<String> getPhotoUrls() {
+        return photoUrls;
+    }
+
+    public void setPhotoUrls(List<String> photoUrls) {
+        this.photoUrls = photoUrls;
+    }
+
+    // Keep compatibility for now or for systems expecting a single photo
     public String getPhotoUrl() {
-        return photoUrl;
+        return (photoUrls != null && !photoUrls.isEmpty()) ? photoUrls.get(0) : null;
     }
 
     public void setPhotoUrl(String photoUrl) {
-        this.photoUrl = photoUrl;
+        if (photoUrl != null && !photoUrl.isEmpty()) {
+            if (this.photoUrls == null) this.photoUrls = new ArrayList<>();
+            if (!this.photoUrls.contains(photoUrl)) {
+                this.photoUrls.add(photoUrl);
+            }
+        }
     }
 
     public String getResolutionPhotoUrl() {
