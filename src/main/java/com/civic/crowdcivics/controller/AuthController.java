@@ -151,6 +151,27 @@ public class AuthController {
         }
     }
 
+    @PutMapping("/update-profile")
+    public ResponseEntity<?> updateProfile(@RequestBody AuthRequest.ProfileUpdateRequest request) {
+        try {
+            Optional<User> userOpt = userService.findByEmail(request.getEmail());
+
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body("User not found");
+            }
+
+            User user = userOpt.get();
+            user.setName(request.getName());
+            user.setPhone(request.getPhone());
+
+            userService.updateUser(user);
+            return ResponseEntity.ok("Profile updated successfully!");
+
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body("Failed to update profile: " + ex.getMessage());
+        }
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest.LoginRequest request) {
         System.out.println("LOGIN ATTEMPT FOR: " + request.getEmail() + " AS ROLE: " + request.getRole());

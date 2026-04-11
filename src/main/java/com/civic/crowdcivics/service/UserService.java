@@ -143,8 +143,26 @@ public class UserService implements UserDetailsService {
                 .build();
     }
 
+    public User updateUser(User user) {
+        System.out.println("UPDATING USER PROFILE FOR: " + user.getEmail());
+        
+        // Optional: Check if phone is being changed and if it's already taken
+        if (user.getPhone() != null && !user.getPhone().trim().isEmpty()) {
+            Optional<User> existingUser = userRepository.findByPhone(user.getPhone());
+            if (existingUser.isPresent() && !existingUser.get().getEmail().equals(user.getEmail())) {
+                throw new IllegalArgumentException("Mobile number already in use by another account");
+            }
+        }
+
+        try {
+            return userRepository.save(user);
+        } catch (Exception e) {
+            System.err.println("PROFILE UPDATE FAILED: " + e.getMessage());
+            throw new RuntimeException("Profile update failed", e);
+        }
+    }
+
     public long countUsersByRole(String role) {
         return userRepository.countByRole(role);
     }
-
 }
