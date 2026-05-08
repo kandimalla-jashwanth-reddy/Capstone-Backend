@@ -41,18 +41,15 @@ public class EmailService {
                             "CrowdCivics Team");
 
             mailSender.send(message);
-            System.out.println("REAL EMAIL SENT SUCCESSFULLY to: " + toEmail);
-            System.out.println("OTP: " + otp);
-
+            System.out.println("OTP email sent successfully");
         } catch (Exception e) {
-            System.err.println("EMAIL SENDING FAILED: " + e.getMessage());
-            System.out.println("\n" + "#".repeat(60));
-            System.out.println("### FALLBACK: YOUR OTP FOR " + purpose.toUpperCase() + " ###");
-            System.out.println("# Email: " + toEmail);
-            System.out.println("# OTP: " + otp);
-            System.out.println("# (Because mail server authentication failed)");
-            System.out.println("#".repeat(60) + "\n");
-            throw e; // Rethrow to let the controller handled the failure
+            System.out.println("========== MAIL ERROR ==========");
+            e.printStackTrace();
+
+            System.out.println("Message: " + e.getMessage());
+            System.out.println("Cause: " + e.getCause());
+
+            throw new RuntimeException("Failed to send OTP: " + e.getMessage());
         }
     }
 }
